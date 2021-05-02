@@ -120,8 +120,11 @@ func (h *Handler) Process(ctx context.Context, link *transport.Link, dialer inte
 	output := link.Writer
 
 	isAEAD := false
-	if !aeadDisabled && len(account.AlterIDs) == 0 {
+	if len(account.AlterIDs) == 0 || vmess.AEADForced {
 		isAEAD = true
+	}
+	if aeadDisabled {
+		isAEAD = false
 	}
 
 	session := encoding.NewClientSession(ctx, isAEAD, protocol.DefaultIDHash)

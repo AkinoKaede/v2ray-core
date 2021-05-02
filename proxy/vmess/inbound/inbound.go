@@ -17,7 +17,6 @@ import (
 	"github.com/v2fly/v2ray-core/v4/common/errors"
 	"github.com/v2fly/v2ray-core/v4/common/log"
 	"github.com/v2fly/v2ray-core/v4/common/net"
-	"github.com/v2fly/v2ray-core/v4/common/platform"
 	"github.com/v2fly/v2ray-core/v4/common/protocol"
 	"github.com/v2fly/v2ray-core/v4/common/session"
 	"github.com/v2fly/v2ray-core/v4/common/signal"
@@ -225,7 +224,7 @@ func (h *Handler) Process(ctx context.Context, network net.Network, connection i
 
 	reader := &buf.BufferedReader{Reader: buf.NewReader(connection)}
 	svrSession := encoding.NewServerSession(h.clients, h.sessionHistory)
-	svrSession.SetAEADForced(aeadForced)
+	svrSession.SetAEADForced(vmess.AEADForced)
 	request, err := svrSession.DecodeRequestHeader(reader)
 	if err != nil {
 		if errors.Cause(err) != io.EOF {
@@ -352,27 +351,8 @@ func (h *Handler) generateCommand(ctx context.Context, request *protocol.Request
 	return nil
 }
 
-var aeadForced = false
-var aeadForced2022 = false
-
 func init() {
 	common.Must(common.RegisterConfig((*Config)(nil), func(ctx context.Context, config interface{}) (interface{}, error) {
 		return New(ctx, config.(*Config))
 	}))
-
-	var defaultFlagValue = "NOT_DEFINED_AT_ALL"
-
-	if time.Now().Year() >= 2022 {
-		defaultFlagValue = "true_by_default_2022"
-	}
-
-	isAeadForced := platform.NewEnvFlag("v2ray.vmess.aead.forced").GetValue(func() string { return defaultFlagValue })
-	if isAeadForced == "true" {
-		aeadForced = true
-	}
-
-	if isAeadForced == "true_by_default_2022" {
-		aeadForced = true
-		aeadForced2022 = true
-	}
 }

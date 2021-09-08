@@ -56,15 +56,7 @@ func init() {
 			}(),
 		}
 
-		var dc dns.Client
-		if err := core.RequireFeatures(ctx, func(d dns.Client) error {
-			dc = d
-			return nil
-		}); err != nil {
-			return nil, err
-		}
-
-		return New(ctx, fullConfig, dc)
+		return common.CreateObject(ctx, fullConfig)
 	}))
 }
 

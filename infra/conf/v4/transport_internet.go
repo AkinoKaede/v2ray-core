@@ -149,16 +149,9 @@ type WebSocketConfig struct {
 // Build implements Buildable.
 func (c *WebSocketConfig) Build() (proto.Message, error) {
 	path := c.Path
-	header := make([]*websocket.Header, 0, 32)
-	for key, value := range c.Headers {
-		header = append(header, &websocket.Header{
-			Key:   key,
-			Value: value,
-		})
-	}
 	config := &websocket.Config{
 		Path:                 path,
-		Header:               header,
+		Header:               c.Headers,
 		MaxEarlyData:         c.MaxEarlyData,
 		UseBrowserForwarding: c.UseBrowserForwarding,
 		EarlyDataHeaderName:  c.EarlyDataHeaderName,

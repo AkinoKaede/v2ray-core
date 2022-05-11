@@ -2,8 +2,9 @@ package aead
 
 import (
 	"crypto/hmac"
-	"crypto/sha256"
 	"hash"
+
+	"github.com/zeebo/blake3"
 )
 
 func KDF(key []byte, path ...string) []byte {
@@ -23,7 +24,9 @@ type hMacCreator struct {
 
 func (h *hMacCreator) Create() hash.Hash {
 	if h.parent == nil {
-		return hmac.New(sha256.New, h.value)
+		return hmac.New(func() hash.Hash {
+			return blake3.New()
+		}, h.value)
 	}
 	return hmac.New(h.parent.Create, h.value)
 }

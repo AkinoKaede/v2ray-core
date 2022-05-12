@@ -5,13 +5,13 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/md5"
-	"crypto/sha256"
 	"encoding/binary"
 	"hash/fnv"
 	"io"
 	"sync"
 	"time"
 
+	"github.com/zeebo/blake3"
 	"golang.org/x/crypto/chacha20poly1305"
 
 	"github.com/v2fly/v2ray-core/v5/common"
@@ -398,9 +398,9 @@ func (s *ServerSession) EncodeResponseHeader(header *protocol.ResponseHeader, wr
 		s.responseBodyKey = md5.Sum(s.requestBodyKey[:])
 		s.responseBodyIV = md5.Sum(s.requestBodyIV[:])
 	} else {
-		BodyKey := sha256.Sum256(s.requestBodyKey[:])
+		BodyKey := blake3.Sum256(s.requestBodyKey[:])
 		copy(s.responseBodyKey[:], BodyKey[:16])
-		BodyIV := sha256.Sum256(s.requestBodyIV[:])
+		BodyIV := blake3.Sum256(s.requestBodyIV[:])
 		copy(s.responseBodyIV[:], BodyIV[:16])
 	}
 

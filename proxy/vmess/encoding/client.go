@@ -7,12 +7,12 @@ import (
 	"crypto/cipher"
 	"crypto/md5"
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/binary"
 	"hash"
 	"hash/fnv"
 	"io"
 
+	"github.com/zeebo/blake3"
 	"golang.org/x/crypto/chacha20poly1305"
 
 	"github.com/v2fly/v2ray-core/v5/common"
@@ -66,9 +66,9 @@ func NewClientSession(ctx context.Context, isAEAD bool, idHash protocol.IDHash, 
 		session.responseBodyKey = md5.Sum(session.requestBodyKey[:])
 		session.responseBodyIV = md5.Sum(session.requestBodyIV[:])
 	} else {
-		BodyKey := sha256.Sum256(session.requestBodyKey[:])
+		BodyKey := blake3.Sum256(session.requestBodyKey[:])
 		copy(session.responseBodyKey[:], BodyKey[:16])
-		BodyIV := sha256.Sum256(session.requestBodyIV[:])
+		BodyIV := blake3.Sum256(session.requestBodyIV[:])
 		copy(session.responseBodyIV[:], BodyIV[:16])
 	}
 	{

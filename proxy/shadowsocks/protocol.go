@@ -30,18 +30,22 @@ var addrParser = protocol.NewAddressParser(
 )
 
 // ReadTCPSession reads a Shadowsocks TCP session from the given reader, returns its header and remaining parts.
-func ReadTCPSession(user *protocol.MemoryUser, reader io.Reader) (*protocol.RequestHeader, buf.Reader, error) {
-	account := user.Account.(*MemoryAccount)
-
-	hashkdf := hmac.New(sha256.New, []byte("SSBSKDF"))
-	hashkdf.Write(account.Key)
-
-	behaviorSeed := crc32.ChecksumIEEE(hashkdf.Sum(nil))
-
+func ReadTCPSession(validator Validator, reader io.Reader) (*protocol.RequestHeader, buf.Reader, error) {
+	behaviorSeed := validator.GetBehaviorSeed()
 	drainer, err := drain.NewBehaviorSeedLimitedDrainer(int64(behaviorSeed), 16+38, 3266, 64)
 	if err != nil {
 		return nil, nil, newError("failed to initialize drainer").Base(err)
 	}
+
+	user, reader, err := validator.GetTCP(reader)
+	switch err {
+	case ErrNotFound:
+		return nil, nil, drain.WithError(drainer, reader, newError("failed to match an user").Base(err))
+	case ErrIVNotUnique:
+		return nil, nil, drain.WithError(drainer, reader, newError("failed iv check").Base(err))
+	}
+
+	account := user.Account.(*MemoryAccount)
 
 	buffer := buf.New()
 	defer buffer.Release()
@@ -85,11 +89,6 @@ func ReadTCPSession(user *protocol.MemoryUser, reader io.Reader) (*protocol.Requ
 	if request.Address == nil {
 		drainer.AcknowledgeReceive(int(buffer.Len()))
 		return nil, nil, drain.WithError(drainer, reader, newError("invalid remote address."))
-	}
-
-	if ivError := account.CheckIV(iv); ivError != nil {
-		drainer.AcknowledgeReceive(int(buffer.Len()))
-		return nil, nil, drain.WithError(drainer, reader, newError("failed iv check").Base(ivError))
 	}
 
 	return request, br, nil
@@ -205,27 +204,21 @@ func EncodeUDPPacket(request *protocol.RequestHeader, payload []byte) (*buf.Buff
 	return buffer, nil
 }
 
-func DecodeUDPPacket(user *protocol.MemoryUser, payload *buf.Buffer) (*protocol.RequestHeader, *buf.Buffer, error) {
-	account := user.Account.(*MemoryAccount)
-
-	var iv []byte
-	if !account.Cipher.IsAEAD() && account.Cipher.IVSize() > 0 {
-		// Keep track of IV as it gets removed from payload in DecodePacket.
-		iv = make([]byte, account.Cipher.IVSize())
-		copy(iv, payload.BytesTo(account.Cipher.IVSize()))
+func DecodeUDPPacket(validator Validator, payload *buf.Buffer) (*protocol.RequestHeader, *buf.Buffer, error) {
+	user, payload, err := validator.GetUDP(payload)
+	switch err {
+	case ErrNotFound:
+		return nil, nil, newError("failed to match an user").Base(err)
+	case ErrIVNotUnique:
+		return nil, nil, newError("failed iv check").Base(err)
 	}
-
-	if err := account.Cipher.DecodePacket(account.Key, payload); err != nil {
-		return nil, nil, newError("failed to decrypt UDP payload").Base(err)
-	}
+	payload.SetByte(0, payload.Byte(0)&0x0F)
 
 	request := &protocol.RequestHeader{
 		Version: Version,
 		User:    user,
 		Command: protocol.RequestCommandUDP,
 	}
-
-	payload.SetByte(0, payload.Byte(0)&0x0F)
 
 	addr, port, err := addrParser.ReadAddressPort(nil, payload)
 	if err != nil {
@@ -250,7 +243,15 @@ func (v *UDPReader) ReadMultiBuffer() (buf.MultiBuffer, error) {
 		buffer.Release()
 		return nil, err
 	}
-	_, payload, err := DecodeUDPPacket(v.User, buffer)
+
+	// workaround
+	validator := NewStreamValidator()
+	if err := validator.Add(v.User); err != nil {
+		buffer.Release()
+		return nil, err
+	}
+
+	_, payload, err := DecodeUDPPacket(validator, buffer)
 	if err != nil {
 		buffer.Release()
 		return nil, err
@@ -265,7 +266,15 @@ func (v *UDPReader) ReadFrom(p []byte) (n int, addr gonet.Addr, err error) {
 		buffer.Release()
 		return 0, nil, err
 	}
-	vaddr, payload, err := DecodeUDPPacket(v.User, buffer)
+
+	// workaround
+	validator := NewStreamValidator()
+	if err := validator.Add(v.User); err != nil {
+		buffer.Release()
+		return 0, nil, err
+	}
+
+	vaddr, payload, err := DecodeUDPPacket(validator, buffer)
 	if err != nil {
 		buffer.Release()
 		return 0, nil, err

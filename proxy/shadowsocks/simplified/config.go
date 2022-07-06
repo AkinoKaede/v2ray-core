@@ -14,11 +14,13 @@ func init() {
 	common.Must(common.RegisterConfig((*ServerConfig)(nil), func(ctx context.Context, config interface{}) (interface{}, error) {
 		simplifiedServer := config.(*ServerConfig)
 		fullServer := &shadowsocks.ServerConfig{
-			User: &protocol.User{
-				Account: serial.ToTypedMessage(&shadowsocks.Account{
-					Password:   simplifiedServer.Password,
-					CipherType: shadowsocks.CipherFromString(simplifiedServer.Method),
-				}),
+			User: []*protocol.User{
+				{
+					Account: serial.ToTypedMessage(&shadowsocks.Account{
+						Password:   simplifiedServer.Password,
+						CipherType: shadowsocks.CipherFromString(simplifiedServer.Method),
+					}),
+				},
 			},
 			Network:        net.ParseNetworks(simplifiedServer.Network),
 			PacketEncoding: simplifiedServer.PacketEncoding,

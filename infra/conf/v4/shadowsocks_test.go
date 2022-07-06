@@ -21,15 +21,27 @@ func TestShadowsocksServerConfigParsing(t *testing.T) {
 		{
 			Input: `{
 				"method": "aes-256-GCM",
-				"password": "v2ray-password"
+				"password": "v2ray-password",
+				"clients": [{
+					"method": "chacha20-IETF-poly1305",
+					"password": "v2fly.org"
+				}]
 			}`,
 			Parser: testassist.LoadJSON(creator),
 			Output: &shadowsocks.ServerConfig{
-				User: &protocol.User{
-					Account: serial.ToTypedMessage(&shadowsocks.Account{
-						CipherType: shadowsocks.CipherType_AES_256_GCM,
-						Password:   "v2ray-password",
-					}),
+				User: []*protocol.User{
+					{
+						Account: serial.ToTypedMessage(&shadowsocks.Account{
+							CipherType: shadowsocks.CipherType_AES_256_GCM,
+							Password:   "v2ray-password",
+						}),
+					},
+					{
+						Account: serial.ToTypedMessage(&shadowsocks.Account{
+							CipherType: shadowsocks.CipherType_CHACHA20_POLY1305,
+							Password:   "v2fly.org",
+						}),
+					},
 				},
 				Network: []net.Network{net.Network_TCP},
 			},

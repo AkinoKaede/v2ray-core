@@ -23,25 +23,41 @@ import (
 
 type Server struct {
 	config        *ServerConfig
-	user          *protocol.MemoryUser
+	validator     Validator
 	policyManager policy.Manager
 }
 
 // NewServer create a new Shadowsocks server.
 func NewServer(ctx context.Context, config *ServerConfig) (*Server, error) {
-	if config.GetUser() == nil {
+	if len(config.GetUser()) == 0 {
 		return nil, newError("user is not specified")
 	}
 
-	mUser, err := config.User.ToMemoryUser()
-	if err != nil {
+	validatorConstructor := NewAEADValidator
+	if user, err := config.User[0].ToMemoryUser(); err == nil {
+		if !user.Account.(*MemoryAccount).Cipher.IsAEAD() {
+			validatorConstructor = NewStreamValidator
+		}
+	} else {
 		return nil, newError("failed to parse user account").Base(err)
+	}
+
+	validator := validatorConstructor()
+	for _, user := range config.User {
+		mUser, err := user.ToMemoryUser()
+		if err != nil {
+			return nil, newError("failed to parse user account").Base(err)
+		}
+
+		if err := validator.Add(mUser); err != nil {
+			return nil, newError("failed to add user").Base(err)
+		}
 	}
 
 	v := core.MustFromContext(ctx)
 	s := &Server{
 		config:        config,
-		user:          mUser,
+		validator:     validator,
 		policyManager: v.GetFeature(policy.ManagerType()).(policy.Manager),
 	}
 
@@ -64,13 +80,13 @@ func (s *Server) Process(ctx context.Context, network net.Network, conn internet
 	case net.Network_TCP:
 		return s.handleConnection(ctx, conn, dispatcher)
 	case net.Network_UDP:
-		return s.handlerUDPPayload(ctx, conn, dispatcher)
+		return s.handleUDPPayload(ctx, conn, dispatcher)
 	default:
 		return newError("unknown network: ", network)
 	}
 }
 
-func (s *Server) handlerUDPPayload(ctx context.Context, conn internet.Connection, dispatcher routing.Dispatcher) error {
+func (s *Server) handleUDPPayload(ctx context.Context, conn internet.Connection, dispatcher routing.Dispatcher) error {
 	udpDispatcherConstructor := udp.NewSplitDispatcher
 	switch s.config.PacketEncoding {
 	case packetaddr.PacketAddrType_None:
@@ -86,7 +102,6 @@ func (s *Server) handlerUDPPayload(ctx context.Context, conn internet.Connection
 			request = &protocol.RequestHeader{
 				Port:    packet.Source.Port,
 				Address: packet.Source.Address,
-				User:    s.user,
 			}
 		}
 
@@ -102,12 +117,6 @@ func (s *Server) handlerUDPPayload(ctx context.Context, conn internet.Connection
 		conn.Write(data.Bytes())
 	})
 
-	inbound := session.InboundFromContext(ctx)
-	if inbound == nil {
-		panic("no inbound metadata")
-	}
-	inbound.User = s.user
-
 	reader := buf.NewPacketReader(conn)
 	for {
 		mpayload, err := reader.ReadMultiBuffer()
@@ -116,7 +125,7 @@ func (s *Server) handlerUDPPayload(ctx context.Context, conn internet.Connection
 		}
 
 		for _, payload := range mpayload {
-			request, data, err := DecodeUDPPacket(s.user, payload)
+			request, data, err := DecodeUDPPacket(s.validator, payload)
 			if err != nil {
 				if inbound := session.InboundFromContext(ctx); inbound != nil && inbound.Source.IsValid() {
 					newError("dropping invalid UDP packet from: ", inbound.Source).Base(err).WriteToLog(session.ExportIDToError(ctx))
@@ -130,6 +139,12 @@ func (s *Server) handlerUDPPayload(ctx context.Context, conn internet.Connection
 				payload.Release()
 				continue
 			}
+
+			inbound := session.InboundFromContext(ctx)
+			if inbound == nil {
+				panic("no inbound metadata")
+			}
+			inbound.User = request.User
 
 			currentPacketCtx := ctx
 			dest := request.Destination()
@@ -153,11 +168,11 @@ func (s *Server) handlerUDPPayload(ctx context.Context, conn internet.Connection
 }
 
 func (s *Server) handleConnection(ctx context.Context, conn internet.Connection, dispatcher routing.Dispatcher) error {
-	sessionPolicy := s.policyManager.ForLevel(s.user.Level)
+	sessionPolicy := s.policyManager.ForLevel(0)
 	conn.SetReadDeadline(time.Now().Add(sessionPolicy.Timeouts.Handshake))
 
 	bufferedReader := buf.BufferedReader{Reader: buf.NewReader(conn)}
-	request, bodyReader, err := ReadTCPSession(s.user, &bufferedReader)
+	request, bodyReader, err := ReadTCPSession(s.validator, &bufferedReader)
 	if err != nil {
 		log.Record(&log.AccessMessage{
 			From:   conn.RemoteAddr(),
@@ -173,7 +188,7 @@ func (s *Server) handleConnection(ctx context.Context, conn internet.Connection,
 	if inbound == nil {
 		panic("no inbound metadata")
 	}
-	inbound.User = s.user
+	inbound.User = request.User
 
 	dest := request.Destination()
 	ctx = log.ContextWithAccessMessage(ctx, &log.AccessMessage{
@@ -185,6 +200,7 @@ func (s *Server) handleConnection(ctx context.Context, conn internet.Connection,
 	})
 	newError("tunnelling request to ", dest).WriteToLog(session.ExportIDToError(ctx))
 
+	sessionPolicy = s.policyManager.ForLevel(request.User.Level)
 	ctx, cancel := context.WithCancel(ctx)
 	timer := signal.CancelAfterInactivity(ctx, cancel, sessionPolicy.Timeouts.ConnectionIdle)
 

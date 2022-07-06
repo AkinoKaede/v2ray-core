@@ -44,9 +44,11 @@ func TestShadowsocksChaCha20Poly1305TCP(t *testing.T) {
 					Listen:    net.NewIPOrDomain(net.LocalHostIP),
 				}),
 				ProxySettings: serial.ToTypedMessage(&shadowsocks.ServerConfig{
-					User: &protocol.User{
-						Account: account,
-						Level:   1,
+					User: []*protocol.User{
+						{
+							Account: account,
+							Level:   1,
+						},
 					},
 					Network: []net.Network{net.Network_TCP},
 				}),
@@ -133,9 +135,11 @@ func TestShadowsocksAES256GCMTCP(t *testing.T) {
 					Listen:    net.NewIPOrDomain(net.LocalHostIP),
 				}),
 				ProxySettings: serial.ToTypedMessage(&shadowsocks.ServerConfig{
-					User: &protocol.User{
-						Account: account,
-						Level:   1,
+					User: []*protocol.User{
+						{
+							Account: account,
+							Level:   1,
+						},
 					},
 					Network: []net.Network{net.Network_TCP},
 				}),
@@ -228,9 +232,11 @@ func TestShadowsocksAES128GCMUDP(t *testing.T) {
 					Listen:    net.NewIPOrDomain(net.LocalHostIP),
 				}),
 				ProxySettings: serial.ToTypedMessage(&shadowsocks.ServerConfig{
-					User: &protocol.User{
-						Account: account,
-						Level:   1,
+					User: []*protocol.User{
+						{
+							Account: account,
+							Level:   1,
+						},
 					},
 					Network: []net.Network{net.Network_UDP},
 				}),
@@ -322,9 +328,11 @@ func TestShadowsocksAES128GCMUDPMux(t *testing.T) {
 					Listen:    net.NewIPOrDomain(net.LocalHostIP),
 				}),
 				ProxySettings: serial.ToTypedMessage(&shadowsocks.ServerConfig{
-					User: &protocol.User{
-						Account: account,
-						Level:   1,
+					User: []*protocol.User{
+						{
+							Account: account,
+							Level:   1,
+						},
 					},
 					Network: []net.Network{net.Network_TCP},
 				}),
@@ -418,9 +426,11 @@ func TestShadowsocksNone(t *testing.T) {
 					Listen:    net.NewIPOrDomain(net.LocalHostIP),
 				}),
 				ProxySettings: serial.ToTypedMessage(&shadowsocks.ServerConfig{
-					User: &protocol.User{
-						Account: account,
-						Level:   1,
+					User: []*protocol.User{
+						{
+							Account: account,
+							Level:   1,
+						},
 					},
 					Network: []net.Network{net.Network_TCP},
 				}),

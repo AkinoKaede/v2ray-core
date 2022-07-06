@@ -19,6 +19,10 @@ import (
 	"github.com/v2fly/v2ray-core/v5/common/protocol"
 )
 
+var (
+	ErrIVNotUnique = newError("IV is not unique")
+)
+
 // MemoryAccount is an account type converted from Account.
 type MemoryAccount struct {
 	Cipher Cipher
@@ -44,7 +48,7 @@ func (a *MemoryAccount) CheckIV(iv []byte) error {
 	if a.replayFilter.Check(iv) {
 		return nil
 	}
-	return newError("IV is not unique")
+	return ErrIVNotUnique
 }
 
 func createAesGcm(key []byte) cipher.AEAD {

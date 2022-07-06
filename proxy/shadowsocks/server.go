@@ -75,6 +75,16 @@ func (s *Server) Network() []net.Network {
 	return list
 }
 
+// AddUser implements proxy.UserManager.AddUser().
+func (s *Server) AddUser(ctx context.Context, user *protocol.MemoryUser) error {
+	return s.validator.Add(user)
+}
+
+// RemoveUser implements proxy.UserManager.RemoveUser().
+func (s *Server) RemoveUser(ctx context.Context, email string) error {
+	return s.validator.Delete(email)
+}
+
 func (s *Server) Process(ctx context.Context, network net.Network, conn internet.Connection, dispatcher routing.Dispatcher) error {
 	switch network {
 	case net.Network_TCP:

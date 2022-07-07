@@ -7,6 +7,10 @@ import (
 	"github.com/v2fly/v2ray-core/v5/common/protocol"
 )
 
+var (
+	ErrNotFound = newError("Not Found")
+)
+
 type Validator interface {
 	Add(*protocol.MemoryUser) error
 	Delete(string) error
@@ -16,7 +20,3 @@ type Validator interface {
 
 	GetBehaviorSeed() uint64
 }
-
-var (
-	ErrNotFound = newError("Not Found")
-)

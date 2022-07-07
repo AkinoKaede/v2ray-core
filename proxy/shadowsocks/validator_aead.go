@@ -26,7 +26,7 @@ const (
 )
 
 var (
-	firstBytesLength int32 = 32 + 2 + 16
+	FirstBytesLength int32 = 32 + 2 + 16
 	ZeroNonce        [MaxNonceSize]byte
 )
 
@@ -83,7 +83,7 @@ func (v *AEADValidator) GetTCP(reader io.Reader) (*protocol.MemoryUser, io.Reade
 	defer v.RUnlock()
 
 	firstBytes := buf.New()
-	if _, err := firstBytes.ReadFullFrom(reader, firstBytesLength); err != nil {
+	if _, err := firstBytes.ReadFullFrom(reader, FirstBytesLength); err != nil {
 		return nil, nil, newError("failed to read first bytes").Base(err)
 	}
 
